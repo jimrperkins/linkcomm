@@ -12,7 +12,6 @@ getLinkCommunities_fast <- function(network)
       return(lc)
 	}
 
-
 tanimoto_edge_clustering <- function(sim_matrix, number_clusters) {
   k_ij_pairs <- apply(sim_matrix, 1, function(k_all_nodes_vec) {
     k_nodes_vec <- k_all_nodes_vec[k_all_nodes_vec > 0]
@@ -22,11 +21,11 @@ tanimoto_edge_clustering <- function(sim_matrix, number_clusters) {
   all_linked_pairs <- do.call(rbind, k_ij_pairs)
   unique_pairs <- unique(all_linked_pairs)
 
-  if(! is.null(opt$rows_per_submatrix)) {
-    crossprods_matrix <- crossprod_sections(sim_matrix, opt$rows_per_submatrix)
-  } else {
+#  if(! is.null(opt$rows_per_submatrix)) {
+#    crossprods_matrix <- crossprod_sections(sim_matrix, opt$rows_per_submatrix)
+#  } else {
     crossprods_matrix <- crossprod(sim_matrix, sim_matrix)
-  }
+#  }
 
   tanimoto_unique_pairs <- apply(unique_pairs, 1, function(x) calc_tanimoto_precomp(x[1], x[2], crossprods_matrix))
   tanimoto_matrix <- weighted_edges_to_symm_matrix(cbind(unique_pairs, tanimoto_unique_pairs))
@@ -116,7 +115,7 @@ hclust_to_lc_obj <- function(hcedges, el) {
     pdmax = double(1), 
     csize = integer(1), TRUE, FALSE, 0, FALSE)
   # LAST 4 arguments are as.logical(removetrivial), as.logical(bipartite), as.integer(bip), as.logical(verbose))
-  )
+  #)
 
   pdens <- c(0,ldlist$pdens)
   heights <- c(0,hh)

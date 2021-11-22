@@ -18,6 +18,8 @@ License: GPL (>= 2)
 URL: https://alextkalinka.github.io/linkcomm/,
     https://github.com/alextkalinka/linkcomm
 Depends: 
+    Matrix,
+    sparseAHC,
     igraph,
     RColorBrewer
 Imports: 
@@ -34,3 +36,4 @@ LazyData: yes
 LazyLoad: yes
 NeedsCompilation: yes
 Repository: CRAN
+RoxygenNote: 7.1.1
