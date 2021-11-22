@@ -12,6 +12,7 @@ extern void getEdgeSimilarities(void *, void *, void *, void *, void *, void *, 
 extern void getEdgeSimilarities_all(void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *);
 extern void getJaccards(void *, void *, void *, void *, void *, void *);
 extern void getLinkDensities(void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *);
+extern void getLinkDensitiesFast(void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *, void *);
 extern void getNumClusters(void *, void *, void *, void *, void *, void *);
 extern void getOCGclusters(void *, void *, void *, void *, void *, void *, void *, void *, void *);
 extern void hclustLinkComm(void *, void *, void *, void *, void *, void *);
@@ -25,7 +26,7 @@ static const R_CMethodDef CEntries[] = {
     {"getEdgeSimilarities_all", (DL_FUNC) &getEdgeSimilarities_all, 13},
     {"getJaccards",             (DL_FUNC) &getJaccards,              6},
     {"getLinkDensities",        (DL_FUNC) &getLinkDensities,        15},
-    {"getLinkDensities_fast",        (DL_FUNC) &getLinkDensities,        15},
+    {"getLinkDensitiesFast",    (DL_FUNC) &getLinkDensitiesFast,        15},
     {"getNumClusters",          (DL_FUNC) &getNumClusters,           6},
     {"getOCGclusters",          (DL_FUNC) &getOCGclusters,           9},
     {"hclustLinkComm",          (DL_FUNC) &hclustLinkComm,           6},
