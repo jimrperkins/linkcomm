@@ -25,6 +25,7 @@ static const R_CMethodDef CEntries[] = {
     {"getEdgeSimilarities_all", (DL_FUNC) &getEdgeSimilarities_all, 13},
     {"getJaccards",             (DL_FUNC) &getJaccards,              6},
     {"getLinkDensities",        (DL_FUNC) &getLinkDensities,        15},
+    {"getLinkDensities_fast",        (DL_FUNC) &getLinkDensities,        15},
     {"getNumClusters",          (DL_FUNC) &getNumClusters,           6},
     {"getOCGclusters",          (DL_FUNC) &getOCGclusters,           9},
     {"hclustLinkComm",          (DL_FUNC) &hclustLinkComm,           6},
