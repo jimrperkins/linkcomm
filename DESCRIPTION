@@ -21,7 +21,8 @@ Depends:
     Matrix,
     sparseAHC,
     igraph,
-    RColorBrewer
+    RColorBrewer,
+    data.table
 Imports: 
     dynamicTreeCut,
     grid,
@@ -36,4 +37,4 @@ LazyData: yes
 LazyLoad: yes
 NeedsCompilation: yes
 Repository: CRAN
-RoxygenNote: 7.1.1
+RoxygenNote: 7.2.0

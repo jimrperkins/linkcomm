@@ -1,61 +1,3 @@
-getLinkCommunities_fast <- function(network) 
-	{
-      all_nodes <- c(network[,1], network[,2])
-      all_terms <- sort(unique(unlist(network[,c(1,2)])))
-      assoc_term <- matrix(0, length(all_terms), length(all_terms), dimnames = list(all_terms, all_terms))
-      assoc_term[as.matrix(network[,c(1,2)])] <- network[,3]
-      assoc_term[as.matrix(network[,c(2,1)])] <- network[,3]
-      tm <- tanimoto_edge_clustering(assoc_term)
-      hc <- tm$hc
-      edges <- tm$pair
-      lc <- hclust_to_lc_obj(hc, edges)
-      return(lc)
-	}
-
-tanimoto_edge_clustering <- function(sim_matrix, number_clusters) {
-  k_ij_pairs <- apply(sim_matrix, 1, function(k_all_nodes_vec) {
-    k_nodes_vec <- k_all_nodes_vec[k_all_nodes_vec > 0]
-    if(length(k_nodes_vec) < 2) return()
-    t(combn(sort(names(k_nodes_vec)), 2))
-  })
-  all_linked_pairs <- do.call(rbind, k_ij_pairs)
-  unique_pairs <- unique(all_linked_pairs)
-
-#  if(! is.null(opt$rows_per_submatrix)) {
-#    crossprods_matrix <- crossprod_sections(sim_matrix, opt$rows_per_submatrix)
-#  } else {
-    crossprods_matrix <- crossprod(sim_matrix, sim_matrix)
-#  }
-
-  tanimoto_unique_pairs <- apply(unique_pairs, 1, function(x) calc_tanimoto_precomp(x[1], x[2], crossprods_matrix))
-  tanimoto_matrix <- weighted_edges_to_symm_matrix(cbind(unique_pairs, tanimoto_unique_pairs))
-  # This is a bit horrible - need to make more legible - can probably vectorize more as well to make fasterq
-
-  tanimoto_pairs_list <- sapply(names(k_ij_pairs), function(k) {
-    if(is.null(k_ij_pairs[[k]])) return()
-    t(apply(k_ij_pairs[[k]], 1, function(x) {
-      c(paste(sort(c(k, x[1])), collapse="_"), 
-        paste(sort(c(k, x[2])), collapse="_"), 
-        tanimoto_matrix[x[1], x[2]])
-    }))
-  })
-  
-  tanimoto_pairs <- do.call(rbind, tanimoto_pairs_list)
-  tanimoto_pairs <- as.data.frame(tanimoto_pairs)
-  tanimoto_pairs[,3] <- as.numeric(tanimoto_pairs[,3])
-
-  tanimoto_sparse <- weighted_edges_to_sparse_symm_matrix(tanimoto_pairs)
-  # Forgive me father, for I have sinned - I'm sure this can be improved with sapply or str_split	
-  pairs <- as.data.frame(t(as.data.frame(strsplit(row.names(tanimoto_sparse),"_"))))
-  hc <- sparseAHC::sparseAHC(tanimoto_sparse, "complete", TRUE)
- 
-  return(list(hc=hc, pairs=pairs))
-  # ct_mine <- cutree(hc, k=6)
-  # names(ct_mine) <- row.names(tanimoto_sparse)
-
-  # return(ct_mine)
-}
-
 weighted_edges_to_symm_matrix <- function(weighted_edges) {
   unique_elements <- unique(c(weighted_edges[,1], weighted_edges[,2]))
   n_elements <- length(unique_elements)
@@ -86,6 +28,161 @@ calc_tanimoto_precomp <- function(ai, aj, crossprods) {
   a_i_j / (a_i2 + a_j2 - a_i_j)
 }
 
+sort_mat_by_row <- function(mat) {
+  d <- data.table::as.data.table(mat)
+  d[, row := .I]
+  d <- data.table::melt(d, id.vars = "row") #wide to long format
+  data.table::setkey(d, row, value) #sort
+  d[, variable := rep(1:ncol(mat) ,nrow(mat))] #decreasing orde
+  as.matrix(dcast(d, row ~ variable)[, row := NULL])
+}
+
+calc_edge_dens <- function(e,n) {(e*(e-n+1))/((n-2)*(n-1))}
+
+get_link_densities <- function(hcedges, edges, clusnums, numcl, heights){
+  tot_edges <- nrow(edges)
+  tot_clust <- length(clusnums)
+  height_subsets <- lapply(
+    split(hcedges$merge, rep(1:tot_clust, clusnums)), matrix, ncol=2
+  )
+  all_comms <- list()
+  i_glob <- 1
+  pdens <- vector(length=tot_clust)
+  all_scores <- vector(length=tot_clust)
+  ldens <- 0
+  for(r in 1:tot_clust) {
+    height_subset <- height_subsets[[r]]
+    hs_rows <- nrow(height_subset)
+    ld_scores <- vector(length=hs_rows)
+    comm_list <- list()
+    for(i in 1:hs_rows) {
+      neg_score <- 0
+      pair <- height_subset[i,]
+      #print(pair)
+      if(pair[1] < 0 && pair[2] < 0) {
+        comm <- edges[abs(pair),]
+      } else if (pair[1] > 0 && pair[2] < 0) {
+        comm <- rbind(edges[abs(pair[2]),],
+                   all_comms[[pair[1]]])
+        neg_score <- all_scores[pair[1]]
+      } else if (pair[1] < 0 && pair[2] > 0) {
+        comm <- rbind(edges[abs(pair[1]),],
+                      all_comms[[pair[2]]])
+        neg_score <- all_scores[pair[2]]
+      } else if (pair[1] > 0 && pair[2] > 0) {
+        comm <- rbind(all_comms[[pair[1]]],
+                      all_comms[[pair[2]]])
+        neg_score <- all_scores[pair[1]] + all_scores[pair[2]]
+      }
+      all_comms[[i_glob]] <- comm
+      e <- nrow(comm) 
+      n <- length(unique(as.vector(comm)))
+      raw_ld_score <- calc_edge_dens(e,n)
+      all_scores[i_glob] <- raw_ld_score
+      ld_scores[i] <-  raw_ld_score - neg_score
+      i_glob <- i_glob+1
+    }
+    ldens <- ldens + sum(ld_scores)
+    pdens[r] <-  (2/tot_edges)*ldens
+  }
+  pdmax <- heights[which(pdens == max(pdens))][1]
+
+  all_cl <- list()
+  i_glob <- 1
+  for(r in 1:which(pdens == max(pdens))[1]) {
+    height_subset <- height_subsets[[r]]
+    hs_rows <- nrow(height_subset)
+    for(i in 1:hs_rows) {
+      pair <- height_subset[i,]
+      # print(pair)
+      cl <- vector()
+      if(pair[1] < 0 && pair[2] < 0) {
+        cl <- pair
+      } else if (pair[1] < 0 && pair[2] > 0) {
+        cl <- c(pair[1], all_cl[[pair[2]]])
+        all_cl[[pair[2]]] <- NA
+      } else if (pair[1] > 0 && pair[2] < 0) {
+        cl <- c(pair[2], all_cl[[pair[1]]])
+        all_cl[[pair[1]]] <- NA
+      } else if (pair[1] > 0 && pair[2] > 0) {
+        cl <- c(all_cl[[pair[1]]], all_cl[[pair[2]]])
+        all_cl[[pair[1]]] <- NA
+        all_cl[[pair[2]]] <- NA
+      }
+      all_cl[[i_glob]] <- cl
+      i_glob <- i_glob + 1
+    }
+  }
+  # csize <- sum(length(unique(unlist(all_cl))))
+  all_cl <- all_cl[! is.na(all_cl)]
+  all_cl <- all_cl[sapply(all_cl, length) > 2]
+  all_cl <- lapply(all_cl, function(x) sort(abs(x)))
+  return(list(
+    pdens = pdens,
+    heights = heights[,1],
+    pdmax = pdmax,
+    csize = length(all_cl),
+    linkcomm_clusters = all_cl)
+  )
+}
+
+getLinkCommunities_fast <- function(network, hcmethod = "average") 
+  {
+      all_nodes <- c(network[,1], network[,2])
+      all_terms <- sort(unique(unlist(network[,c(1,2)])))
+      assoc_term <- matrix(0, length(all_terms), length(all_terms), dimnames = list(all_terms, all_terms))
+      assoc_term[as.matrix(network[,c(1,2)])] <- network[,3]
+      assoc_term[as.matrix(network[,c(2,1)])] <- network[,3]
+      tm <- tanimoto_edge_clustering(assoc_term, hcmethod=hcmethod)
+      hc <- tm$hc
+      edges <- tm$pair
+      lc <- hclust_to_lc_obj(hc, edges)
+      return(list(tm=tm, lc=lc))
+  }
+
+tanimoto_edge_clustering <- function(sim_matrix, hcmethod) {
+  k_ij_pairs <- apply(sim_matrix, 1, function(k_all_nodes_vec) {
+    k_nodes_vec <- k_all_nodes_vec[k_all_nodes_vec > 0]
+    if(length(k_nodes_vec) < 2) return()
+    t(combn(sort(names(k_nodes_vec)), 2))
+  })
+  all_linked_pairs <- do.call(rbind, k_ij_pairs)
+  unique_pairs <- unique(all_linked_pairs)
+
+#  if(! is.null(opt$rows_per_submatrix)) {
+#    crossprods_matrix <- crossprod_sections(sim_matrix, opt$rows_per_submatrix)
+#  } else {
+    crossprods_matrix <- crossprod(sim_matrix, sim_matrix)
+#  }
+
+  tanimoto_unique_pairs <- apply(unique_pairs, 1, function(x) calc_tanimoto_precomp(x[1], x[2], crossprods_matrix))
+  tanimoto_matrix <- weighted_edges_to_symm_matrix(cbind(unique_pairs, tanimoto_unique_pairs))
+
+  lengths_kij <- sapply(k_ij_pairs, length)/2
+  k_names_vec <- rep(names(k_ij_pairs), lengths_kij)
+  k_ij_pairs_df <- do.call("rbind", k_ij_pairs)
+  col1 <- cbind(k_names_vec, k_ij_pairs_df[,1])
+  col2 <- cbind(k_names_vec, k_ij_pairs_df[,2])
+  col1 <- sort_mat_by_row(col1)
+  col2 <- sort_mat_by_row(col2)
+  col1 <- paste(col1[,1], col1[,2], sep="_")
+  col2 <- paste(col2[,1], col2[,2], sep="_")
+  k_pairs <- cbind(col1, col2)
+  tanimoto_pairs <- cbind(k_pairs,
+    apply(k_ij_pairs_df, 1, function(x) tanimoto_matrix[x[1],x[2]])
+  )
+  tanimoto_pairs <- data.frame(tanimoto_pairs)
+  tanimoto_pairs[,3] <- as.numeric(tanimoto_pairs[,3])
+  tanimoto_pairs[,3] <- round(tanimoto_pairs[,3], digits = 6)
+
+  tanimoto_sparse <- weighted_edges_to_sparse_symm_matrix(tanimoto_pairs)
+
+  pairs <- as.data.frame(t(as.data.frame(strsplit(row.names(tanimoto_sparse),"_"))))
+  hc <- sparseAHC::sparseAHC(tanimoto_sparse, hcmethod, TRUE)
+  return(list(hc=hc, pairs=pairs))
+}
+
+
 hclust_to_lc_obj <- function(hcedges, el) {
   verbose <- TRUE
   intel <- linkcomm::integer.edgelist(el) # Edges with numerical node IDs.
@@ -103,24 +200,12 @@ hclust_to_lc_obj <- function(hcedges, el) {
   directed <- FALSE
   bipartite <- FALSE
 
-  ldlist <- .C("getLinkDensitiesFast",as.integer(hcedges$merge[,1]), 
-    as.integer(hcedges$merge[,2]), 
-    as.integer(edges[,1]), 
-    as.integer(edges[,2]), 
-    as.integer(nrow(edges)),
-    as.integer(clusnums), 
-    as.integer(numcl), 
-    pdens = double(length(hh)), 
-    heights = as.double(hh), 
-    pdmax = double(1), 
-    csize = integer(1), TRUE, FALSE, 0, FALSE)
-  # LAST 4 arguments are as.logical(removetrivial), as.logical(bipartite), as.integer(bip), as.logical(verbose))
-  #)
-
+  ldlist <- get_link_densities(hcedges, edges, clusnums, numcl, hh)
   pdens <- c(0,ldlist$pdens)
   heights <- c(0,hh)
   pdmax <- ldlist$pdmax
   csize <- ldlist$csize
+  clus <- ldlist$linkcomm_clusters
 
   if(csize == 0){
     stop("\nno clusters were found in this network; maybe try a larger network\n")
@@ -129,19 +214,6 @@ hclust_to_lc_obj <- function(hcedges, el) {
   if(verbose){
     cat("\n   Maximum partition density = ",max(pdens),"\n")
   }
-
-  # Read in optimal clusters from a file.
-  clus <- list()
-  for(i in 1:csize){
-    if(verbose){
-      mes<-paste(c("   Finishing up...1/4... ",floor((i/csize)*100),"%"),collapse="")
-      cat(mes,"\r")
-      flush.console()
-    }
-    clus[[i]] <- scan(file = "linkcomm_clusters.txt", nlines = 1, skip = i-1, quiet = TRUE)
-  }
-
-  file.remove("linkcomm_clusters.txt")
 
   ecn <- data.frame()
   ee <- data.frame()
