@@ -126,7 +126,7 @@ get_link_densities <- function(hcedges, edges, clusnums, numcl, heights){
   )
 }
 
-getLinkCommunities_fast <- function(network, hcmethod = "average") 
+getLinkCommunities_fast <- function(network, hcmethod = "complete") 
   {
       all_nodes <- c(network[,1], network[,2])
       all_terms <- sort(unique(unlist(network[,c(1,2)])))
@@ -137,7 +137,7 @@ getLinkCommunities_fast <- function(network, hcmethod = "average")
       hc <- tm$hc
       edges <- tm$pair
       lc <- hclust_to_lc_obj(hc, edges)
-      return(list(tm=tm, lc=lc))
+      return(lc)
   }
 
 tanimoto_edge_clustering <- function(sim_matrix, hcmethod) {
