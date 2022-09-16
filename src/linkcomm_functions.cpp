@@ -203,7 +203,7 @@ void getNumClusters(int *unn, int *nodes, int *counts, unsigned int *numnodes, u
 		if(*verbose){
 			prog = (i+0.0)/(*numnodes-1.0)*100;
 
-			Rprintf("\r   Finishing up...4/4... %3.2f%%",prog);
+			// Rprintf("\r   Finishing up...4/4... %3.2f%%",prog);
 
 			R_FlushConsole();
 			R_ProcessEvents();

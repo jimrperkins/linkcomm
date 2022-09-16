@@ -141,14 +141,17 @@ getLinkCommunities_fast <- function(network, hcmethod = "complete")
   }
 
 tanimoto_edge_clustering <- function(sim_matrix, hcmethod) {
+  print("Start tm edge clustering faster")
+    print(proc.time())
+  print(pryr::mem_used())
   k_ij_pairs <- apply(sim_matrix, 1, function(k_all_nodes_vec) {
     k_nodes_vec <- k_all_nodes_vec[k_all_nodes_vec > 0]
     if(length(k_nodes_vec) < 2) return()
-    t(combn(sort(names(k_nodes_vec)), 2))
+    t(combn(names(k_nodes_vec), 2))
   })
   all_linked_pairs <- do.call(rbind, k_ij_pairs)
+  all_linked_pairs <- all_linked_pairs[all_linked_pairs[,1] < all_linked_pairs[,2],]
   unique_pairs <- unique(all_linked_pairs)
-
 #  if(! is.null(opt$rows_per_submatrix)) {
 #    crossprods_matrix <- crossprod_sections(sim_matrix, opt$rows_per_submatrix)
 #  } else {
@@ -156,32 +159,54 @@ tanimoto_edge_clustering <- function(sim_matrix, hcmethod) {
 #  }
 
   tanimoto_unique_pairs <- apply(unique_pairs, 1, function(x) calc_tanimoto_precomp(x[1], x[2], crossprods_matrix))
-  tanimoto_matrix <- weighted_edges_to_symm_matrix(cbind(unique_pairs, tanimoto_unique_pairs))
 
-  lengths_kij <- sapply(k_ij_pairs, length)/2
-  k_names_vec <- rep(names(k_ij_pairs), lengths_kij)
-  k_ij_pairs_df <- do.call("rbind", k_ij_pairs)
-  col1 <- cbind(k_names_vec, k_ij_pairs_df[,1])
-  col2 <- cbind(k_names_vec, k_ij_pairs_df[,2])
-  col1 <- sort_mat_by_row(col1)
-  col2 <- sort_mat_by_row(col2)
-  col1 <- paste(col1[,1], col1[,2], sep="_")
-  col2 <- paste(col2[,1], col2[,2], sep="_")
-  k_pairs <- cbind(col1, col2)
-  tanimoto_pairs <- cbind(k_pairs,
-    apply(k_ij_pairs_df, 1, function(x) tanimoto_matrix[x[1],x[2]])
+  print("Before merges and things")
+    print(proc.time())
+  print(pryr::mem_used())
+
+tani_triplets <- data.table(
+  i = unique_pairs[,1],
+  j = unique_pairs[,2],
+  v = as.numeric(tanimoto_unique_pairs),
+  key="i,j"
   )
-  tanimoto_pairs <- data.frame(tanimoto_pairs)
-  tanimoto_pairs[,3] <- as.numeric(tanimoto_pairs[,3])
-  tanimoto_pairs[,3] <- round(tanimoto_pairs[,3], digits = 6)
+  k_ij_pairs_df <- do.call("rbind", k_ij_pairs)
+lengths_kij <- sapply(k_ij_pairs, length)/2
+k_names_vec <- rep(names(k_ij_pairs), lengths_kij)
+kij_pairs <- data.table(
+  i = k_ij_pairs_df[,1],
+  j = k_ij_pairs_df[,2],
+  coni=k_names_vec, 
+  conj=k_names_vec, key="i,j")
+kij_pairs <- merge(kij_pairs, tani_triplets)
+  kij_pairs$v <- round(kij_pairs$v , digits = 6)
 
-  tanimoto_sparse <- weighted_edges_to_sparse_symm_matrix(tanimoto_pairs)
+kij_pairs[kij_pairs$j > kij_pairs$conj ,c("j","conj")] <- 
+  kij_pairs[kij_pairs$j > kij_pairs$conj ,c("conj", "j")]
+kij_pairs[kij_pairs$i > kij_pairs$coni ,c("i","coni")] <- 
+  kij_pairs[kij_pairs$i > kij_pairs$coni ,c("coni", "i")]
+kij_pairs[ , names_i := do.call(paste, c(.SD, sep = "_")), .SDcols=c("i","coni")]
+kij_pairs[ , names_j := do.call(paste, c(.SD, sep = "_")), .SDcols=c("j","conj")]
 
-  pairs <- as.data.frame(t(as.data.frame(strsplit(row.names(tanimoto_sparse),"_"))))
+min_table <- as.data.frame(kij_pairs[,c("names_i", "names_j", "v")])
+  rm(list=setdiff(ls(), c("min_table","hcmethod")))
+
+  tanimoto_sparse <- weighted_edges_to_sparse_symm_matrix(min_table)
+  rm(list=setdiff(ls(), c("tanimoto_sparse","hcmethod")))
+
+  print("Before sparse clustering")
+    print(proc.time())
+  print(pryr::mem_used())
+  tanimoto_sparse <- tanimoto_sparse[sort(row.names(tanimoto_sparse)), sort(row.names(tanimoto_sparse))]
+pairs <- as.data.frame(t(as.data.frame(strsplit(row.names(tanimoto_sparse),"_"))))
+  save(list = ls(all.names = TRUE), file = "~/lc_environment_faster.RData")
+
   hc <- sparseAHC::sparseAHC(tanimoto_sparse, hcmethod, TRUE)
+    print("At the end")
+    print(proc.time())
+  print(pryr::mem_used())
   return(list(hc=hc, pairs=pairs))
 }
-
 
 hclust_to_lc_obj <- function(hcedges, el) {
   verbose <- TRUE
@@ -218,10 +243,11 @@ hclust_to_lc_obj <- function(hcedges, el) {
   ecn <- data.frame()
   ee <- data.frame()
   lclus <- length(clus)
+  print("finishing up 2")
   for(i in 1:lclus){
     if(verbose){
       mes<-paste(c("   Finishing up...2/4... ",floor((i/lclus)*100),"%"),collapse="")
-      cat(mes,"\r")
+      # cat(mes,"\r")
       flush.console()
     }
     ee <- rbind(ee,cbind(el[clus[[i]],],i))
@@ -237,10 +263,11 @@ hclust_to_lc_obj <- function(hcedges, el) {
   ss <- NULL
   unn <- unique(ecn[,2])
   lun <- length(unn)
+  print("finishing up 3")
   for(i in 1:length(unn)){
     if(verbose){
       mes<-paste(c("   Finishing up...3/4... ",floor((i/lun)*100),"%"),collapse="")
-      cat(mes,"\r")
+      # cat(mes,"\r")
       flush.console()
     }
     ss[i] <- length(which(ecn[,2]==unn[i]))
