@@ -159,6 +159,22 @@ getLinkCommunities <- function(network, hcmethod = "average", use.all.edges = FA
 			}else{
 				dissvec <- .C("getEdgeSimilarities_all",as.integer(edges[,1]),as.integer(edges[,2]),as.integer(len),as.integer(numnodes),rowlen=integer(1),weights=as.double(wt),as.logical(FALSE),as.double(dirweight),as.logical(weighted),as.logical(disk), dissvec = as.double(emptyvec), as.logical(bipartite), as.logical(verbose))$dissvec
 				}
+			if(verbose) {
+				distmatrix <- matrix(1,len,len)
+				distmatrix[lower.tri(distmatrix)] <- dissvec
+				colnames(distmatrix) <- 1:len
+				rownames(distmatrix) <- 1:len
+				# convert distance matrix to list of pairs and similarity values.
+				distmatrix[upper.tri(distmatrix)] <- t(distmatrix)[upper.tri(distmatrix)]
+				names_distmatrix <- apply(el, 1, function(x) { x <- sort(x); paste(x, collapse="_")} )
+				colnames(distmatrix) <- names_distmatrix
+				rownames(distmatrix) <- names_distmatrix
+ 				distmatrix[lower.tri(distmatrix)] <- 1
+ 				from_to_sim <-  subset(reshape2::melt(1-distmatrix), value!=0)
+				from_to_sim <- from_to_sim[order(from_to_sim[,1]),]
+				from_to_sim[,1:2] <- t(apply(from_to_sim[,1:2], 1, sort))
+				write.table(from_to_sim, quote=FALSE, file="edge_scores.txt", sep="\t", row.names=FALSE, col.names=FALSE)
+			}
 			distmatrix <- matrix(1,len,len)
 			distmatrix[lower.tri(distmatrix)] <- dissvec
 			colnames(distmatrix) <- 1:len
