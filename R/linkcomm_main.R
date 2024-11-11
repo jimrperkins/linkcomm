@@ -85,7 +85,7 @@ getLinkCommunities <- function(network, hcmethod = "average", use.all.edges = FA
 	# If plot is true (default), a dendrogram and partition density score as a function of dendrogram height are plotted side-by-side.
 	# When there are more than "edglim" edges, hierarchical clustering is carried out via temporary files written to disk using compiled C++ code.
 	{
-
+print("START ORIG")
 	if(is.character(network) && !is.matrix(network)){
 		if(file.access(network) == -1){
 			stop(cat("\nfile not found: \"",network,"\"\n",sep=""))
@@ -93,8 +93,10 @@ getLinkCommunities <- function(network, hcmethod = "average", use.all.edges = FA
 			network <- read.table(file = network, header = FALSE)
 			}
 		}
+	#				save(network, file=file.path(getwd(), "network.RData"))
+
 	x <- network
-	rm(network)
+	#rm(network)
 
 	if(ncol(x)==3){
 		wt <- as.numeric(as.character(x[,3]))
@@ -148,10 +150,15 @@ getLinkCommunities <- function(network, hcmethod = "average", use.all.edges = FA
 
 	rm(intel)
 
+	print("SWITCH ON NETWORK SIZE")
+	print(edglim)
 	# Switch depending on size of network.
 	if(len <= edglim){
+		print("SMALL SIZE")
 		disk <- FALSE
+		save(edges, wt,file="saveit.RData")
 		if(is.null(dist)){
+			print("We are here right?")
 			emptyvec <- rep(1,(len*(len-1))/2)
 			if(!is.null(wt)){ weighted <- TRUE}else{ wt <- 0; weighted <- FALSE}
 			if(!use.all.edges){
@@ -159,28 +166,39 @@ getLinkCommunities <- function(network, hcmethod = "average", use.all.edges = FA
 			}else{
 				dissvec <- .C("getEdgeSimilarities_all",as.integer(edges[,1]),as.integer(edges[,2]),as.integer(len),as.integer(numnodes),rowlen=integer(1),weights=as.double(wt),as.logical(FALSE),as.double(dirweight),as.logical(weighted),as.logical(disk), dissvec = as.double(emptyvec), as.logical(bipartite), as.logical(verbose))$dissvec
 				}
+			distmatrix <- matrix(1,len,len)
+			distmatrix[lower.tri(distmatrix)] <- dissvec
+			colnames(distmatrix) <- 1:len
+			rownames(distmatrix) <- 1:len
+			# save(distmatrix, file="distmatrix.RData")
 			if(verbose) {
-				distmatrix <- matrix(1,len,len)
-				distmatrix[lower.tri(distmatrix)] <- dissvec
-				colnames(distmatrix) <- 1:len
-				rownames(distmatrix) <- 1:len
-				# convert distance matrix to list of pairs and similarity values.
+				# convert distance matrix to list of pairs and SIMILARITY values. Add reshape2 depency properly if works
 				distmatrix[upper.tri(distmatrix)] <- t(distmatrix)[upper.tri(distmatrix)]
 				names_distmatrix <- apply(el, 1, function(x) { x <- sort(x); paste(x, collapse="_")} )
 				colnames(distmatrix) <- names_distmatrix
 				rownames(distmatrix) <- names_distmatrix
  				distmatrix[lower.tri(distmatrix)] <- 1
  				from_to_sim <-  subset(reshape2::melt(1-distmatrix), value!=0)
+				# from_to_sim[,1:2] <- apply(from_to_sim[,1:2], 1, sort) |> t()
 				from_to_sim <- from_to_sim[order(from_to_sim[,1]),]
 				from_to_sim[,1:2] <- t(apply(from_to_sim[,1:2], 1, sort))
 				write.table(from_to_sim, quote=FALSE, file="edge_scores.txt", sep="\t", row.names=FALSE, col.names=FALSE)
+
+				distmatrix <- matrix(1,len,len)
+				distmatrix[lower.tri(distmatrix)] <- dissvec
+				colnames(distmatrix) <- 1:len
+				rownames(distmatrix) <- 1:len
 			}
-			distmatrix <- matrix(1,len,len)
-			distmatrix[lower.tri(distmatrix)] <- dissvec
-			colnames(distmatrix) <- 1:len
-			rownames(distmatrix) <- 1:len
+			# To compare:
+			 #load("R_glc.R_0001/dist_stuff_new.RData")
+			 #vv<-vector(); for(i in 1:100){vv[i] <- distmatrix[min_table[i, "names_i"], min_table[i, "names_j"]]}
+#min_table[1:100,][min_table$v[1:100] == vv,] # Same same
+#min_table[1:100,][min_table$v[1:100] != vv,] # Different
+#Example: Brujon_Thenardier      Gavroche_Thenardier # sim_matrix[c("Brujon", "Thenardier", "Gavroche"),]
+			# distmatrix <- distmatrix[ order(names_distmatrix),  order(names_distmatrix)]
 			distobj <- as.dist(distmatrix) # Convert into 'dist' object for hclust.
-			rm(distmatrix)
+			# rm(distmatrix)
+			# save(list = ls(all.names = TRUE), file=file.path("dist_stuff_orig2.RData"))
 		}else{	
 			# Did the user provide an adequate distance matrix?
 			if(!inherits(dist,"dist")){
@@ -192,6 +210,7 @@ getLinkCommunities <- function(network, hcmethod = "average", use.all.edges = FA
 				}
 			distobj <- dist
 			}
+		print("FINISHED GETTING EDGE DISTANCE MATRIX")
 		if(verbose){
 			cat("\n   Hierarchical clustering of edges...")
 			}
@@ -200,6 +219,9 @@ getLinkCommunities <- function(network, hcmethod = "average", use.all.edges = FA
 		#}else{
 		#	hcedges <- hclust(distobj, method = hcmethod)
 		#	}
+		print("ABOUT TO HCLUST")
+		print(hcmethod)
+		print("METHOD ABOVE")
 		hcedges <- hclust(distobj, method = hcmethod)
 		hcedges$order <- rev(hcedges$order)
 		rm(distobj)

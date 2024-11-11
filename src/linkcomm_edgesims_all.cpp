@@ -169,10 +169,13 @@ void getEdgeSimilarities_all(int *ea, int *eb, unsigned int *numedg, unsigned in
 	vector<double> aI;
 	vector<double> aJ;
 
+
+
 	copy(ea, ea + *numedg, back_inserter(edgeA));
 	copy(eb, eb + *numedg, back_inserter(edgeB));
 
 	ofstream outfile;
+					Rprintf("\nCheck compiled all!\n");
 
 	if(*disk){
 		remove("linkcomm_diss.txt");
@@ -303,6 +306,7 @@ void getEdgeSimilarities_all(int *ea, int *eb, unsigned int *numedg, unsigned in
 					}
 
 				// Tanimoto coefficient.
+					Rprintf("\nWeighted not directed!\n");
 				dotprod = inner_product(aI.begin(),aI.end(),aJ.begin(),0.0);
 				absA = inner_product(aI.begin(),aI.end(),aI.begin(),0.0);
 				absB = inner_product(aJ.begin(),aJ.end(),aJ.begin(),0.0);
@@ -327,6 +331,8 @@ void getEdgeSimilarities_all(int *ea, int *eb, unsigned int *numedg, unsigned in
 						}
 					}
 				// Tanimoto coefficient.
+										Rprintf("\nWeighted and directed!\n");
+
 				dotprod = inner_product(aI.begin(),aI.end(),aJ.begin(),0.0);
 				absA = inner_product(aI.begin(),aI.end(),aI.begin(),0.0);
 				absB = inner_product(aJ.begin(),aJ.end(),aJ.begin(),0.0);

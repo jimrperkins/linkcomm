@@ -164,6 +164,7 @@ void getDirectedWeights(map<int,float> &dW, set<int> &comm, vector<int> &eA, vec
 
 
 
+// void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *rowlen, double *weights, bool *directed, double *dirweight, bool *weighted, bool *disk, double *dissvec, double *dotprod_vec, double *absA_vec, double *absB_vec, bool *bipartite, bool *verbose)
 void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *rowlen, double *weights, bool *directed, double *dirweight, bool *weighted, bool *disk, double *dissvec, bool *bipartite, bool *verbose)
 
 	{
@@ -204,6 +205,9 @@ void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *r
 
 	ofstream outfile;
 
+
+//					Rprintf("\nCheck compiled not all!\n");
+
 	if(*disk){
 		remove("linkcomm_diss.txt");
 		outfile.open("linkcomm_diss.txt", ios::out);
@@ -220,7 +224,7 @@ void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *r
 		if(*verbose){
 			prog = (i+0.0)/(*numedg-2)*100;
 
-			Rprintf("\r   Calculating edge similarities for %d edges... %3.2f%%",*numedg,prog);
+			// Rprintf("\r   Calculating edge similarities for %d edges... %3.2f%%",*numedg,prog);
 
 			R_FlushConsole();
 			R_ProcessEvents();
@@ -348,6 +352,10 @@ void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *r
 					dissvec[inds.at(j)-i-1+runn] = distm;
 					}
 			}else if(*weighted && !*directed){
+//									Rprintf("\nWeighted not directed!\n");
+// Rprintf("\ni: %d", i);
+// Rprintf("\tj: %d", j);
+
 				// Loop through sorted node neighbourhood union and extract corresponding weights.
 				for(sit = total.begin(); sit != total.end(); sit++){
 					aI.push_back( mapA[*sit] ); // Equals zero if unmatched node key.
@@ -358,10 +366,31 @@ void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *r
 				dotprod = inner_product(aI.begin(),aI.end(),aJ.begin(),0.0);
 				absA = inner_product(aI.begin(),aI.end(),aI.begin(),0.0);
 				absB = inner_product(aJ.begin(),aJ.end(),aJ.begin(),0.0);
+
+				// Rprintf("\ndist: %f\n", 1.0 - (dotprod/(absA + absB - dotprod)));
+
+ // Rprintf("\tdotprod: %f\t", dotprod);
+ // Rprintf("AbsA: %f\t", absA);
+ // Rprintf("AbsB: %f\n", absB);
+
+     // for(int v=0; v<aI.size(); ++v){
+      //  Rprintf("%f ,", v, aI[v]);
+    // }
+       //         Rprintf("\nai Printed\n");
+
+    // for(int v=0; v<aJ.size(); ++v){
+       // Rprintf("%f ,", v, aJ[v]);
+   // }
+     //       Rprintf("\naj Printed\n");
+
 				if(*disk){
 					row.at(inds.at(j)-i-1) = 1.0 - (dotprod/(absA + absB - dotprod));
 				}else{
 					dissvec[inds.at(j)-i-1+runn] = 1.0 - (dotprod/(absA + absB - dotprod));
+					// dotprod_vec[inds.at(j)-i-1+runn] = dotprod;
+					// absA_vec[inds.at(j)-i-1+runn] = absA;
+					// absB_vec[inds.at(j)-i-1+runn] = absB;
+
 					}
 
 			}else if(*weighted && *directed){
@@ -420,7 +449,7 @@ void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *r
 					}
 				
 				}
-
+			//Rprintf("bottom\n");
 			//Rprintf("\ninds.at(j) %d\ncommon.size %d\ntotal.size %d\n",inds.at(j),common.size(),total.size());
 
 			nodesJ.clear();
@@ -437,6 +466,7 @@ void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *r
 			dirWeights.clear();
 
 			}
+			//			Rprintf("\nDOUBLE_bottom\n");
 
 		if(*disk){
 			// Collapse strings of '1's in each row to compress file size.
@@ -494,6 +524,9 @@ void getEdgeSimilarities(int *ea, int *eb, unsigned int *numedg, unsigned int *r
 		nodesI.clear();
 
 		}
+
+							// Rprintf("\nTRIPLE BOTTOM\n");
+
 
 	if(*disk){
 		outfile.close();
